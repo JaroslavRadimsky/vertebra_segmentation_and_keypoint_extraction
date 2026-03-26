@@ -1,1 +1,1 @@
-# vertebra_segmentation_and_keypoint_extraction
+# Automatic cervical alignment estimation code repository
