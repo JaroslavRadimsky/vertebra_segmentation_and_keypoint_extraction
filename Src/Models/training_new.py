@@ -1,26 +1,30 @@
+from pathlib import Path
+
 import torch
 import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingWarmRestarts
 from monai.metrics import DiceMetric, MeanIoU
 from monai.inferers import sliding_window_inference
+from Src.project_paths import RUNS_DIR, SEGMENTATION_CHECKPOINTS_DIR
 
 
-def save_model(model, optimizer, epoch, filepath="../Models/model.pth"):
+def save_model(model, optimizer, epoch, filepath=SEGMENTATION_CHECKPOINTS_DIR / "model.pth"):
+    Path(filepath).parent.mkdir(parents=True, exist_ok=True)
     checkpoint = {
         "epoch": epoch,
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict(),
     }
     torch.save(checkpoint, filepath)
-    print(f"✅ Save model to: {filepath}")
+    print(f"[saved] {filepath}")
 
 def load_model(model, optimizer, filepath="model.pth", device="cuda"):
     checkpoint = torch.load(filepath, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     epoch = checkpoint["epoch"]
-    #print(f"✅ Load model from {filepath}, last epoch: {epoch}")
+    #print(f"[loaded] {filepath}, last epoch: {epoch}")
     return model, optimizer, epoch
 
 def training_loop(model, loss_function, optimizer, train_loader, val_loader, config, lrconfig, fold_id, start_epoch=0):
@@ -28,7 +32,7 @@ def training_loop(model, loss_function, optimizer, train_loader, val_loader, con
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
-    writer = SummaryWriter(f'./Runs/{config["NAME"]}-fold-{fold_id}')
+    writer = SummaryWriter(RUNS_DIR / f'{config["NAME"]}-fold-{fold_id}')
 
     # lepší sledovat bez backgroundu
     dice_metric = DiceMetric(include_background=False, reduction="mean")
@@ -75,7 +79,7 @@ def training_loop(model, loss_function, optimizer, train_loader, val_loader, con
 
             # Dice: logits -> argmax -> onehot
             pred_class = torch.argmax(logits, dim=1)  # (B,H,W)
-            pred_onehot = F.one_hot(pred_class, num_classes=7).permute(0, 3, 1, 2).float()
+            pred_onehot = F.one_hot(pred_class, num_classes=config["NUM_CLASSES"]).permute(0, 3, 1, 2).float()
             dice_metric(pred_onehot, labels)
 
         train_epoch_dice = float(dice_metric.aggregate().item())
@@ -100,10 +104,10 @@ def training_loop(model, loss_function, optimizer, train_loader, val_loader, con
 
                 logits = sliding_window_inference(
                     inputs=inputs,
-                    roi_size=(512, 512),
-                    sw_batch_size=4,
+                    roi_size=tuple(config.get("SW_ROI_SIZE", (512, 512))),
+                    sw_batch_size=config.get("SW_BATCH_SIZE", 4),
                     predictor=model,
-                    overlap=0.25,
+                    overlap=config.get("SW_OVERLAP", 0.25),
                     mode="gaussian"
                 )
 
@@ -113,7 +117,7 @@ def training_loop(model, loss_function, optimizer, train_loader, val_loader, con
                 val_batches += 1
 
                 pred_class = torch.argmax(logits, dim=1)
-                pred_onehot = F.one_hot(pred_class, num_classes=7).permute(0, 3, 1, 2).float()
+                pred_onehot = F.one_hot(pred_class, num_classes=config["NUM_CLASSES"]).permute(0, 3, 1, 2).float()
                 dice_metric(pred_onehot, labels)
 
         epoch_val_dice = float(dice_metric.aggregate().item())
@@ -134,11 +138,11 @@ def training_loop(model, loss_function, optimizer, train_loader, val_loader, con
 
         # save checkpoints
         if epoch % config["SAVE_EPOCH"] == 0:
-            save_model(model, optimizer, epoch, filepath=f"./Models/{config['NAME']}-epoch-{epoch}-fold-{fold_id}.pth")
+            save_model(model, optimizer, epoch, filepath=SEGMENTATION_CHECKPOINTS_DIR / f"{config['NAME']}-epoch-{epoch}-fold-{fold_id}.pth")
 
         if epoch_val_dice > best_val_dice and epoch_val_dice > min_val_dice:
             best_val_dice = epoch_val_dice
-            save_model(model, optimizer, epoch, filepath=f"./Models/{config['NAME']}-fold-{fold_id}-best.pth")
+            save_model(model, optimizer, epoch, filepath=SEGMENTATION_CHECKPOINTS_DIR / f"{config['NAME']}-fold-{fold_id}-best.pth")
 
         print(
             f"Epoch {epoch}: "
@@ -147,4 +151,3 @@ def training_loop(model, loss_function, optimizer, train_loader, val_loader, con
         )
 
     writer.close()
-

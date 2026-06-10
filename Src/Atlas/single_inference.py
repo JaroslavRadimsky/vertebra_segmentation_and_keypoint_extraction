@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 single_inference.py
 
 
@@ -336,8 +336,8 @@ def main():
         cv2.imwrite(out_blended, blended_hat_bgr)
 
 
-    print(f"→ uloženo: {out_maskhat}")
-    print(f"→ uloženo: {out_blended}")
+    print(f"[saved] {out_maskhat}")
+    print(f"[saved] {out_blended}")
     print("Hotovo.")
 
 

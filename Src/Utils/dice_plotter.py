@@ -75,7 +75,7 @@ def main():
         y_max=y_max,
     )
 
-    print("Hotovo ✅")
+    print("Hotovo")
     print("Uloženo:")
     print(" - dice_train.png")
     print(" - dice_val.png")

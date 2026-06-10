@@ -1,0 +1,58 @@
+run:
+  name: Atlas-heqv-multi-patch-100
+  train: true
+  load_train_model: null
+  save_epoch: 10
+  min_val_dice: 0.65
+  seed: 42
+  max_epochs: 200
+
+data:
+  dataset_name: atlas_vertebra
+  max_files: 100
+  start_fold: 4
+  binary: false
+  heqv: true
+  train_batch_size: 2
+  test_batch_size: 2
+  num_workers: 0
+  patches_per_image: 20
+
+model:
+  num_classes: 7
+  in_channels: 3
+  channels: [16, 32, 64, 128, 256]
+  strides: [2, 2, 2, 2]
+  num_res_units: 2
+
+optimizer:
+  lr: 0.01
+
+scheduler:
+  reduce_on_plateau: false
+  patience: 5
+  ratio: 0.8
+  t0: 5
+  t_mult: 2
+  eta_min: 1.0e-8
+
+transforms:
+  image_size: [512, 512]
+  rand_flip_prob: 0.5
+  rand_rotate90_prob: 0.5
+  rand_rotate90_max_k: 3
+  rand_zoom_min: 0.9
+  rand_zoom_max: 1.1
+  rand_zoom_prob: 0.3
+  rand_gaussian_noise_prob: 0.2
+
+validation:
+  sw_roi_size: [512, 512]
+  sw_batch_size: 4
+  sw_overlap: 0.25
+
+loss:
+  to_onehot_y: false
+  softmax: true
+  lambda_dice: 1.0
+  lambda_ce: 1.0
